@@ -1,0 +1,59 @@
+pipeline{
+    agent Any
+    environment {     
+    registry = "Dockerhubid/myownrep" 
+    registryCredential = 'Dockerhubid'    
+    dockerImage = '' 
+    dockerContainer = ''
+    containerId = ''
+    containerInfo = ''
+    ipaddress = ''
+    portinfo = ''
+
+    expectedIP = ''
+    expectedPort = ''
+
+
+  } 
+  stages{
+        stage("git clone"){
+          steps{
+              git 'https://github.com/mysampleapp/nodeapp'
+          }
+        }
+        
+        stage("Docker build"){
+             dockerImage = docker.build('myownrep/my-node-app:$BUILD_NUMBER')
+              
+	      }
+        stage("Push to Docker Registry"){
+             withDockerRegistry('', registryCredential)
+             dockerImage.push()
+                   
+        }
+        stage("Deploy container"){
+              docker.image(dockerImage).withRun('-p 8080:80 --name containername'){
+              sh 'echo container running'
+           }
+        }
+        stage("verify container IP and port"){
+            dockerContainer = docker.image(dockerImage).withRun('-p 8080:80 --name containername')
+            containerId = dockerContainer.id
+            containerInfo = docker.inspect("${containerId}")
+            ipaddress = containerInfo.NetworkSettings.IPAddress
+            portinfo = containerInfo.HostConfig.PortBindings
+
+            #Verify if the container is using the machine s public IP and port
+            expectedIP = "Machinepublicip/DockerHostip"
+            expectedPort = "Machineport/HostPort"
+            if (ipaddress == expectedIP && portinfo.contains(expectedPort)) {
+                  println "Container is using the expected IP address and port."
+            } 
+            else {
+                  println "Container is NOT using the expected IP address and port."
+              }
+            }
+        }
+      }
+    
+
